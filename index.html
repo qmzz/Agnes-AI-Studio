@@ -254,7 +254,7 @@ async function genVid(){
     if(mode==="img2vid"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<1)return toast("请输入参考图 URL","error");body.image=urls[0];}
     else if(mode==="multi"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<1)return toast("请输入参考图 URL","error");body.extra_body={image:urls};}
     else if(mode==="keyframe"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<2)return toast("请输入至少 2 个关键帧 URL","error");body.extra_body={image:urls,mode:"keyframes"};}
-    var cr=await apiFetch(C.vidApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)},120000);
+    var cr=await apiFetch(C.vidApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)},420000);
     fl.style.width="25%";
     if(!cr.ok){var et=await cr.text(),em;try{em=JSON.parse(et).error.message||JSON.parse(et).error||et;}catch(e){em=et;}throw new Error(em);}
     var td=await cr.json();
