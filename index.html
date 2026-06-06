@@ -165,7 +165,7 @@ label{display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-
 <option value="720x1280">720 x 1280</option>
 </select></div>
 <div><label>帧数</label><select class="select" id="vidFrames">
-
+<option value="121" selected>121 (5秒)</option>
 </select></div>
 <div><label>帧率</label><select class="select" id="vidFps">
 <option value="16">16</option>
@@ -241,12 +241,12 @@ async function genImg(){
   if(!C.apiKey)return toast("请输入 API Key","error");
   var btn=document.getElementById("imgGenerate"),st=document.getElementById("imgStatus"),pg=document.getElementById("imgProgress"),fl=pg.querySelector(".progress-fill");
   var mode=document.querySelector("[data-imgmode].active").dataset.imgmode;
-  btn.disabled=true;st.innerHTML='<span class="spinner"></span>生成中...';pg.style.display="block";fl.style.width="30%";
+  if(btn.disabled)return;btn.disabled=true;st.innerHTML='<span class="spinner"></span>生成中...';pg.style.display="block";fl.style.width="30%";
   try{
     var t0=Date.now(),size=document.getElementById("imgSize").value,fmt=document.getElementById("imgFormat").value;
     var body={model:C.imgModel,prompt:prompt,size:size};
     if(fmt==="base64")body.return_base64=true;else body.extra_body={response_format:"url"};
-    if(mode==="img2img"){if(!imgB64)return toast("请上传参考图片","error");if(imgB64.length>20*1024*1024)return toast("图片过大，请压缩后再试","error");body.image=[imgB64];if(fmt==="base64")body.extra_body={response_format:"b64_json"};}
+    if(mode==="img2img"){if(!imgB64)return toast("请上传参考图片","error");if(imgB64.length>20*1024*1024)return toast("图片过大，请压缩后再试","error");body.image=[imgB64];}
     var resp=await apiFetch(C.imgApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)});
     fl.style.width="80%";
     if(!resp.ok){var et=await resp.text(),em;try{em=JSON.parse(et).error.message||JSON.parse(et).error||et;}catch(e){em=et;}throw new Error(em);}
@@ -266,7 +266,7 @@ async function genVid(){
   if(!C.apiKey)return toast("请输入 API Key","error");
   var btn=document.getElementById("vidGenerate"),st=document.getElementById("vidStatus"),pg=document.getElementById("vidProgress"),fl=pg.querySelector(".progress-fill");
   var mode=document.querySelector("[data-vidmode].active").dataset.vidmode;
-  btn.disabled=true;st.innerHTML='<span class="spinner"></span>提交中...';pg.style.display="block";fl.style.width="10%";
+  if(btn.disabled)return;btn.disabled=true;st.innerHTML='<span class="spinner"></span>提交中...';pg.style.display="block";fl.style.width="10%";
   try{
     var t0=Date.now(),sz=document.getElementById("vidSize").value.split("x"),w=parseInt(sz[0]),h=parseInt(sz[1]),nf=parseInt(document.getElementById("vidFrames").value),fr=parseInt(document.getElementById("vidFps").value);
     var body={model:C.vidModel,prompt:prompt,height:h,width:w,num_frames:nf,frame_rate:fr};
