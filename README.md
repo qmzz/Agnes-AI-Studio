@@ -1,17 +1,18 @@
 # Agnes AI Studio
 
-基于 Agnes AI API 的图片/视频生成工具，支持 Cloudflare Pages 和 Workers 部署。
+基于 Agnes AI API 的图片与视频生成工具，支持单文件静态页面和 Cloudflare Workers 部署。
 
-> **隐私说明**: 所有配置信息（API Key、端点、模型等）仅保存在你的浏览器本地（localStorage），不会上传到任何服务器。
+> **隐私说明**：所有配置与生成记录（API Key、端点、模型、图片/视频结果 URL 等）仅保存在你的浏览器本地 localStorage 中，不会上传到本项目服务器。生成请求会直接发送到你配置的 Agnes AI API 端点。
 
 ## 功能
 
-- **图片生成**: 文生图 / 图生图，支持 URL 和 Base64 输出
-- **视频生成**: 文生视频 / 图生视频 / 多图参考 / 关键帧动画
-- **异步轮询**: 视频任务自动创建并轮询结果
-- **API Key 即用**: 内置 Agnes AI 默认端点和模型，只需填写 API Key
-- **暗色/亮色主题**: 支持主题切换，偏好自动保存
-- **画廊展示**: 生成结果网格展示，点击在新标签页打开，支持下载
+- **图片生成**：文生图、图生图。图生图使用公网可访问的参考图 URL。
+- **视频生成**：文生视频、图生视频、多图参考、关键帧。参考图均使用公网可访问的图片 URL。
+- **生成记录本地保留**：图片和视频结果保存在浏览器 localStorage，刷新页面不会丢失；需要手动点击删除才会清理。
+- **结果操作**：支持新标签打开、下载、删除；图片结果可一键设为图生图参考图。
+- **帧率/帧数联动**：视频帧数按 `帧数 = 帧率 × 时间 + 1` 自动生成，最高 441 帧。
+- **主题切换**：支持暗色/亮色主题，本地保存偏好。
+- **高级设置**：可自定义图片 API、视频 API、视频查询 API 和模型名称。
 
 ## 默认 API
 
@@ -19,38 +20,37 @@
 |------|------|------|
 | 图片 | `https://apihub.agnes-ai.com/v1/images/generations` | `agnes-image-2.1-flash` |
 | 视频 | `https://apihub.agnes-ai.com/v1/videos` | `agnes-video-v2.0` |
-| 查询 | `https://apihub.agnes-ai.com/agnesapi` | - |
+| 视频查询 | `https://apihub.agnes-ai.com/agnesapi` | - |
 
-## 部署方式
+## 使用说明
 
-### 方式一：Cloudflare Pages（纯静态，最简单）
+1. 在顶部 API Key 输入框填写你的 Agnes AI API Key 并保存。
+2. 选择“图片生成”或“视频生成”。
+3. 图片模式支持文生图和图生图；图生图需要填写公网图片 URL。
+4. 视频模式支持文生视频、图生视频、多图参考、关键帧；非文生视频模式需要填写一个或多个公网图片 URL。
+5. 点击生成后，结果会显示在页面下方并自动保存到浏览器本地。
+6. 历史结果可打开、下载、删除；图片结果可点击“参考”继续作为图生图参考图。
 
-1. 在 Cloudflare 控制台进入 **Workers & Pages**
-2. 点击 **Create**，选择 **Pages**，上传 `index.html` 一个文件即可
-3. 部署完成后会得到一个 `xxx.pages.dev` 的访问地址
-4. 可选：在 **Custom domains** 绑定自己的域名
+## 部署
 
-### 方式二：Cloudflare Workers
+### Cloudflare Pages
 
-1. 在 Cloudflare 控制台进入 **Workers & Pages**
-2. 点击 **Create**，创建一个 Worker
-3. 将 `worker.js` 和 `index.html` 的内容分别放入同名文件，保存并部署
-4. 部署完成后访问 `https://<名称>.<子域>.workers.dev/`
+1. 在 Cloudflare 控制台进入 **Workers & Pages**。
+2. 创建 Pages 项目，上传 `index.html` 即可。
+3. 部署完成后访问生成的 `*.pages.dev` 地址。
 
-## 使用
+### Cloudflare Workers
 
-1. 在顶部 API Key 栏输入你的 Agnes AI API Key 并保存
-2. 选择图片或视频标签页
-3. 选择子模式（文生图/图生图/文生视频/图生视频/多图参考/关键帧）
-4. 输入提示词，点击生成
-5. 图片模式可选择 URL 或 Base64 输出格式
-6. 视频模式可调节分辨率、帧数、帧率
-7. 点击生成结果在新标签页中查看，支持下载
+1. 安装并配置 Wrangler。
+2. 使用仓库中的 `wrangler.toml` 和 `worker.js` 部署。
+3. Worker 会返回 `index.html` 页面，并保留 `/api/proxy` 代理能力供扩展使用。
 
 ## 项目结构
 
-```
-├── index.html      # 前端页面（单文件，可独立使用）
-├── worker.js       # Cloudflare Worker（可选，用于服务端 HTML 服务）
-└── wrangler.toml   # Wrangler 部署配置（可选）
+```text
+├── index.html      # 前端单页应用
+├── worker.js       # Cloudflare Worker 入口
+├── wrangler.toml   # Wrangler 配置
+├── README.md       # 项目说明
+└── LICENSE
 ```
