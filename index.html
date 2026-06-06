@@ -307,14 +307,16 @@ function renderG(type,results){
       video.muted=true;
       video.loop=true;
       video.playsInline=true;
-      video.addEventListener('mouseenter',function(){video.play();});
-      video.addEventListener('mouseleave',function(){video.pause();});
+      video.style.pointerEvents='none';
+      item.addEventListener('mouseenter',function(){video.play();});
+      item.addEventListener('mouseleave',function(){video.pause();});
       item.appendChild(video);
     } else {
       var img=document.createElement('img');
       img.src=r.url;
       img.alt=r.prompt;
       img.loading='lazy';
+      img.style.pointerEvents='none';
       item.appendChild(img);
     }
 
@@ -354,27 +356,16 @@ function renderG(type,results){
   c.appendChild(wrap);
 }
 
-async function dlF(u,n){
-  try{
-    var href=u;
-    var revoke=false;
-    if(u.indexOf('data:')!==0&&u.indexOf('blob:')!==0){
-      var resp=await fetch(u,{mode:'cors',cache:'no-store'});
-      if(!resp.ok)throw new Error('download failed');
-      href=URL.createObjectURL(await resp.blob());
-      revoke=true;
-    }
-    var a=document.createElement('a');
-    a.href=href;
-    a.download=n;
-    a.rel='noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    if(revoke)setTimeout(function(){URL.revokeObjectURL(href);},1000);
-  }catch(e){
-    window.open(u,'_blank','noopener,noreferrer');
-  }
+function dlF(u,n){
+  var a=document.createElement('a');
+  a.href=u;
+  a.download=n;
+  a.target='_blank';
+  a.rel='noopener noreferrer';
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 function toast(m,t){var el=document.getElementById("toast");el.textContent=m;el.className="toast show "+t;setTimeout(function(){el.className="toast";},3000);}
 renderG("img",[]);renderG("vid",[]);
