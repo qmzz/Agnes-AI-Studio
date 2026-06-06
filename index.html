@@ -50,9 +50,9 @@ label{display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-
 .gallery-item.video-item{aspect-ratio:16/9}
 .gallery-item:hover{transform:scale(1.02)}
 .gallery-item img,.gallery-item video{width:100%;height:100%;object-fit:cover}
-.gallery-item .overlay{position:absolute;inset:0;background:linear-gradient(transparent 50%,rgba(0,0,0,.7));opacity:0;transition:opacity .2s;display:flex;align-items:flex-end;justify-content:center;padding:10px;gap:6px}
+.gallery-item .overlay{position:absolute;inset:0;background:linear-gradient(transparent 50%,rgba(0,0,0,.7));opacity:0;transition:opacity .2s;display:flex;align-items:flex-end;justify-content:center;padding:10px;gap:6px;pointer-events:none}
 .gallery-item:hover .overlay{opacity:1}
-.gallery-item .overlay button{padding:5px 10px;border-radius:6px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:var(--primary);color:#fff;z-index:2;position:relative;}
+.gallery-item .overlay button{padding:5px 10px;border-radius:6px;border:none;font-size:11px;font-weight:600;cursor:pointer;background:var(--primary);color:#fff;z-index:2;position:relative;pointer-events:auto;}
 .gallery-item .badge{position:absolute;top:6px;left:6px;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(0,0,0,.6);color:#fff}
 .progress-bar{width:100%;height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin:10px 0}
 .progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:3px;transition:width .3s;width:0}
@@ -112,7 +112,7 @@ label{display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-
 </div>
 <label style="margin-top:12px">提示词</label>
 <textarea class="textarea" id="imgPrompt" rows="3" placeholder="一座发光的浮空城市漂浮在薄雾笼罩的峡谷之上，日出时分，电影级写实风格..."></textarea>
-<div class="form-grid form-grid-2" style="margin-top:10px">
+<div class="form-grid" style="margin-top:10px">
 <div><label>尺寸</label><select class="select" id="imgSize">
 <option value="1024x1024">1024 x 1024</option>
 <option value="1024x768" selected>1024 x 768</option>
@@ -121,10 +121,7 @@ label{display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-
 <option value="1792x1024">1792 x 1024</option>
 <option value="512x512">512 x 512</option>
 </select></div>
-<div><label>输出格式</label><select class="select" id="imgFormat">
-<option value="url">URL</option>
-<option value="base64">Base64</option>
-</select></div>
+
 </div>
 <div style="margin-top:14px;display:flex;gap:8px;align-items:center">
 <button class="btn btn-primary" id="imgGenerate"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>生成</button>
@@ -227,17 +224,17 @@ async function genImg(){
   var mode=document.querySelector("[data-imgmode].active").dataset.imgmode;
   if(btn.disabled)return;btn.disabled=true;st.innerHTML='<span class="spinner"></span>生成中...';pg.style.display="block";fl.style.width="30%";
   try{
-    var t0=Date.now(),size=document.getElementById("imgSize").value,fmt=document.getElementById("imgFormat").value;
+    var t0=Date.now(),size=document.getElementById("imgSize").value;
     var body={model:C.imgModel,prompt:prompt,size:size};
-    if(fmt==="base64")body.return_base64=true;else body.extra_body={response_format:"url"};
-    if(mode==="img2img"){var ref=document.getElementById("imgRefUrl").value.trim();if(!ref)return toast("请输入参考图 URL","error");body.tags=["img2img"];body.extra_body={image:[ref],response_format:fmt==="base64"?"b64_json":"url"};}
+    body.extra_body={response_format:"url"};
+    if(mode==="img2img"){var ref=document.getElementById("imgRefUrl").value.trim();if(!ref)return toast("请输入参考图 URL","error");body.tags=["img2img"];body.extra_body={image:[ref],response_format:"url"};}
     var resp=await apiFetch(C.imgApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)});
     fl.style.width="80%";
     if(!resp.ok){var et=await resp.text(),em;try{em=JSON.parse(et).error.message||JSON.parse(et).error||et;}catch(e){em=et;}throw new Error(em);}
     var data=await resp.json();fl.style.width="100%";
     var imgs=data.data||[];if(!imgs.length)throw new Error("未返回图片");
     var el=((Date.now()-t0)/1000).toFixed(1);
-    var nr=imgs.map(function(img,i){return{id:Date.now()+"_"+i,type:"image",url:img.b64_json?("data:image/png;base64,"+img.b64_json):img.url,prompt:prompt,model:C.imgModel,size:size,timestamp:new Date().toLocaleString(),mode:mode==="img2img"?"I2I":"T2I"};});
+    var nr=imgs.map(function(img,i){return{id:Date.now()+"_"+i,type:"image",url:img.url,prompt:prompt,model:C.imgModel,size:size,timestamp:new Date().toLocaleString(),mode:mode==="img2img"?"I2I":"T2I"};});
     imgR=[].concat(nr,imgR);if(imgR.length>100)imgR=imgR.slice(0,100);saveR("img",imgR);renderG("img",imgR);st.textContent="完成，耗时 "+el+" 秒";toast("已生成 "+imgs.length+" 张图片","success");
   }catch(err){st.textContent="";toast(err.message,"error");}
   finally{btn.disabled=false;setTimeout(function(){pg.style.display="none";fl.style.width="0";},800);}
@@ -279,11 +276,16 @@ function renderG(type,results){
   var wrap=document.createElement('div');
   wrap.className='gallery';
   results.forEach(function(r){
-    var item=document.createElement('a');
+    var item=document.createElement('div');
     item.className='gallery-item '+(r.type==='video'?'video-item':'img-item');
-    item.href=r.url;
-    item.target='_blank';
-    item.rel='noopener noreferrer';
+
+    var link=document.createElement('a');
+    link.href=r.url;
+    link.target='_blank';
+    link.rel='noopener noreferrer';
+    link.style.display='block';
+    link.style.width='100%';
+    link.style.height='100%';
 
     if(r.type==='video'){
       var video=document.createElement('video');
@@ -294,15 +296,16 @@ function renderG(type,results){
       video.style.pointerEvents='none';
       item.addEventListener('mouseenter',function(){video.play();});
       item.addEventListener('mouseleave',function(){video.pause();});
-      item.appendChild(video);
+      link.appendChild(video);
     } else {
       var img=document.createElement('img');
       img.src=r.url;
       img.alt=r.prompt;
       img.loading='lazy';
       img.style.pointerEvents='none';
-      item.appendChild(img);
+      link.appendChild(img);
     }
+    item.appendChild(link);
 
     if(r.mode){
       var badge=document.createElement('span');
@@ -317,11 +320,7 @@ function renderG(type,results){
     openBtn.type='button';
     openBtn.title='打开';
     openBtn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v7h-7"/><path d="M3 10V3h7"/><path d="M3 21l7-7"/></svg>';
-    openBtn.addEventListener('click',function(e){
-      e.preventDefault();
-      e.stopPropagation();
-      window.open(r.url,'_blank','noopener,noreferrer');
-    });
+    openBtn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();window.open(r.url,'_blank','noopener,noreferrer');});
     overlay.appendChild(openBtn);
     if(r.type==='image'){
       var refBtn=document.createElement('button');
@@ -342,11 +341,7 @@ function renderG(type,results){
     btn.type='button';
     btn.title='下载';
     btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
-    btn.addEventListener('click',function(e){
-      e.preventDefault();
-      e.stopPropagation();
-      dlF(r.url,(r.type==='video'?'video_':'image_')+r.id+(r.type==='video'?'.mp4':'.png'));
-    });
+    btn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();dlF(r.url,(r.type==='video'?'video_':'image_')+r.id+(r.type==='video'?'.mp4':'.png'));});
     overlay.appendChild(btn);
     item.appendChild(overlay);
     wrap.appendChild(item);
@@ -356,16 +351,16 @@ function renderG(type,results){
 
 function delR(type,id){if(type==="img"){imgR=imgR.filter(function(x){return x.id!==id;});saveR("img",imgR);renderG("img",imgR);}else{vidR=vidR.filter(function(x){return x.id!==id;});saveR("vid",vidR);renderG("vid",vidR);}}
 function setRef(u){document.querySelector('[data-tab="image"]').click();document.querySelector('[data-imgmode="img2img"]').click();document.getElementById("imgRefUrl").value=u;toast("已设为图生图参考图","success");}
-async function dlF(u,n){
-  try{
-    if(u.indexOf('data:')===0||u.indexOf('blob:')===0){
-      var a=document.createElement('a');a.href=u;a.download=n;a.style.display='none';document.body.appendChild(a);a.click();document.body.removeChild(a);return;
-    }
-    var resp=await fetch(u,{mode:'cors'});if(!resp.ok)throw 0;
-    var blob=await resp.blob();var objUrl=URL.createObjectURL(blob);
-    var a=document.createElement('a');a.href=objUrl;a.download=n;a.style.display='none';document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(function(){URL.revokeObjectURL(objUrl);},60000);
-  }catch(e){window.open(u,'_blank','noopener,noreferrer');}
+function dlF(u,n){
+  var a=document.createElement('a');
+  a.href=u;
+  a.download=n;
+  a.target='_blank';
+  a.rel='noopener noreferrer';
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 function toast(m,t){var el=document.getElementById("toast");el.textContent=m;el.className="toast show "+t;setTimeout(function(){el.className="toast";},3000);}
 var _pv=1;document.addEventListener("visibilitychange",function(){_pv=document.hidden?0:1;});
