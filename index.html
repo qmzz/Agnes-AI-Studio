@@ -230,9 +230,12 @@ document.getElementById("settingsBtn").onclick=function(){document.getElementByI
 document.getElementById("settingsCancel").onclick=function(){modal.classList.remove("open");};
 modal.onclick=function(e){if(e.target===modal)modal.classList.remove("open");};
 document.getElementById("settingsSave").onclick=function(){C.imgApiUrl=document.getElementById("cfgImgUrl").value.trim()||D.imgApiUrl;C.imgModel=document.getElementById("cfgImgModel").value.trim()||D.imgModel;C.vidApiUrl=document.getElementById("cfgVidUrl").value.trim()||D.vidApiUrl;C.vidModel=document.getElementById("cfgVidModel").value.trim()||D.vidModel;C.vidQueryUrl=document.getElementById("cfgVidQueryUrl").value.trim()||D.vidQueryUrl;saveC(C);modal.classList.remove("open");toast("设置已保存","success");};
-function apiFetch(targetUrl,opts){
+function apiFetch(targetUrl,opts,timeoutMs){
   var requestOpts={method:opts&&opts.method||"POST",headers:opts&&opts.headers||{},body:opts&&opts.body};
-  return fetch(targetUrl,requestOpts);
+  var ctrl=new AbortController();
+  requestOpts.signal=ctrl.signal;
+  var timer=setTimeout(function(){ctrl.abort();},timeoutMs||60000);
+  return fetch(targetUrl,requestOpts).finally(function(){clearTimeout(timer);});
 }
 document.getElementById("imgGenerate").onclick=genImg;
 async function genImg(){
@@ -254,7 +257,7 @@ async function genImg(){
     var imgs=data.data||[];if(!imgs.length)throw new Error("未返回图片");
     var el=((Date.now()-t0)/1000).toFixed(1);
     var nr=imgs.map(function(img,i){return{id:Date.now()+"_"+i,type:"image",url:img.b64_json?("data:image/png;base64,"+img.b64_json):img.url,prompt:prompt,model:C.imgModel,size:size,timestamp:new Date().toLocaleString(),mode:mode==="img2img"?"I2I":"T2I"};});
-    imgR=[].concat(nr,imgR);renderG("img",imgR);st.textContent="完成，耗时 "+el+" 秒";toast("已生成 "+imgs.length+" 张图片","success");
+    imgR=[].concat(nr,imgR);if(imgR.length>100)imgR=imgR.slice(0,100);renderG("img",imgR);st.textContent="完成，耗时 "+el+" 秒";toast("已生成 "+imgs.length+" 张图片","success");
   }catch(err){st.textContent="";toast(err.message,"error");}
   finally{btn.disabled=false;setTimeout(function(){pg.style.display="none";fl.style.width="0";},800);}
 }
@@ -281,10 +284,10 @@ async function genVid(){
     var tid=td.task_id||td.taskId||td.id||td.data&&td.data.task_id||td.result&&td.result.task_id;
     st.innerHTML='<span class="spinner"></span>处理中...';fl.style.width="35%";
     var pUrl=vid?C.vidQueryUrl+"?video_id="+encodeURIComponent(vid):tid?C.vidApiUrl+"/"+encodeURIComponent(tid):C.vidQueryUrl;
-    var maxW=600000,iv=4000,vUrl=null,errCount=0;
-    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,iv);});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}});if(!pr.ok){errCount++;if(errCount>=3)throw new Error("轮询连续失败 "+errCount+" 次，HTTP "+pr.status);continue;}var res=await pr.json();errCount=0;var s=String(res.status||res.state||res.task_status||"").toLowerCase();if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");if(s==="submitted"||s==="queued"||s==="running"||s==="processing"||s==="pending"||!s)continue;}
+    var maxW=600000,iv=2000,vUrl=null,errCount=0;
+    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,_pv?iv:Math.max(iv,8000));});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}});if(!pr.ok){errCount++;if(errCount>=3)throw new Error("轮询连续失败 "+errCount+" 次，HTTP "+pr.status);continue;}var res=await pr.json();errCount=0;var s=String(res.status||res.state||res.task_status||"").toLowerCase();if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");if(s==="submitted"||s==="queued"||s==="running"||s==="processing"||s==="pending"||!s)continue;}
     if(!vUrl)throw new Error("超时：等待 "+Math.round((Date.now()-t0)/1000)+" 秒后仍未完成");fl.style.width="100%";var tt=((Date.now()-t0)/1000).toFixed(1);
-    vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:prompt,model:C.vidModel,duration:(nf/fr).toFixed(1)+" 秒",size:w+"x"+h,mode:mode,timestamp:new Date().toLocaleString()}].concat(vidR);renderG("vid",vidR);st.textContent="完成，耗时 "+tt+" 秒";toast("视频已生成","success");
+    if(vidR.length>50)vidR=vidR.slice(0,50);vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:prompt,model:C.vidModel,duration:(nf/fr).toFixed(1)+" 秒",size:w+"x"+h,mode:mode,timestamp:new Date().toLocaleString()}].concat(vidR);renderG("vid",vidR);st.textContent="完成，耗时 "+tt+" 秒";toast("视频已生成","success");
   }catch(err){st.textContent="";toast(err.message,"error");}
   finally{btn.disabled=false;setTimeout(function(){pg.style.display="none";fl.style.width="0";},800);}
 }
@@ -368,6 +371,7 @@ async function dlF(u,n){
   }catch(e){window.open(u,'_blank','noopener,noreferrer');}
 }
 function toast(m,t){var el=document.getElementById("toast");el.textContent=m;el.className="toast show "+t;setTimeout(function(){el.className="toast";},3000);}
+var _pv=1;document.addEventListener("visibilitychange",function(){_pv=document.hidden?0:1;});
 renderG("img",[]);renderG("vid",[]);
 </script>
 </body>
