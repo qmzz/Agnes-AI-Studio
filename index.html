@@ -193,7 +193,9 @@ label{display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-
 const D={imgApiUrl:"https://apihub.agnes-ai.com/v1/images/generations",imgModel:"agnes-image-2.1-flash",vidApiUrl:"https://apihub.agnes-ai.com/v1/videos",vidModel:"agnes-video-v2.0",vidQueryUrl:"https://apihub.agnes-ai.com/agnesapi",apiKey:""};
 function loadC(){try{return{...D,...JSON.parse(localStorage.getItem("agnes-cfg")||"{}")};}catch(e){return{...D};}}
 function saveC(c){localStorage.setItem("agnes-cfg",JSON.stringify(c));}
-let C=loadC(),imgR=[],vidR=[];
+let C=loadC(),imgR=loadR("img"),vidR=loadR("vid");
+function loadR(t){try{return JSON.parse(localStorage.getItem("agnes-"+t+"-results")||"[]");}catch(e){return[];}}
+function saveR(t,r){localStorage.setItem("agnes-"+t+"-results",JSON.stringify(r));}
 const root=document.documentElement,th=localStorage.getItem("agnes-th")||"dark";
 root.setAttribute("data-theme",th);ui(th);
 document.getElementById("themeToggle").onclick=function(){const n=root.getAttribute("data-theme")==="dark"?"light":"dark";root.setAttribute("data-theme",n);localStorage.setItem("agnes-th",n);ui(n);};
@@ -236,7 +238,7 @@ async function genImg(){
     var imgs=data.data||[];if(!imgs.length)throw new Error("未返回图片");
     var el=((Date.now()-t0)/1000).toFixed(1);
     var nr=imgs.map(function(img,i){return{id:Date.now()+"_"+i,type:"image",url:img.b64_json?("data:image/png;base64,"+img.b64_json):img.url,prompt:prompt,model:C.imgModel,size:size,timestamp:new Date().toLocaleString(),mode:mode==="img2img"?"I2I":"T2I"};});
-    imgR=[].concat(nr,imgR);if(imgR.length>100)imgR=imgR.slice(0,100);renderG("img",imgR);st.textContent="完成，耗时 "+el+" 秒";toast("已生成 "+imgs.length+" 张图片","success");
+    imgR=[].concat(nr,imgR);if(imgR.length>100)imgR=imgR.slice(0,100);saveR("img",imgR);renderG("img",imgR);st.textContent="完成，耗时 "+el+" 秒";toast("已生成 "+imgs.length+" 张图片","success");
   }catch(err){st.textContent="";toast(err.message,"error");}
   finally{btn.disabled=false;setTimeout(function(){pg.style.display="none";fl.style.width="0";},800);}
 }
@@ -266,7 +268,7 @@ async function genVid(){
     var maxW=600000,iv=2000,vUrl=null,errCount=0;
     while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,_pv?iv:Math.max(iv,8000));});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}});if(!pr.ok){errCount++;if(errCount>=3)throw new Error("轮询连续失败 "+errCount+" 次，HTTP "+pr.status);continue;}var res=await pr.json();errCount=0;var s=String(res.status||res.state||res.task_status||"").toLowerCase();if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");if(s==="submitted"||s==="queued"||s==="running"||s==="processing"||s==="pending"||!s)continue;}
     if(!vUrl)throw new Error("超时：等待 "+Math.round((Date.now()-t0)/1000)+" 秒后仍未完成");fl.style.width="100%";var tt=((Date.now()-t0)/1000).toFixed(1);
-    if(vidR.length>50)vidR=vidR.slice(0,50);vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:prompt,model:C.vidModel,duration:(nf/fr).toFixed(1)+" 秒",size:w+"x"+h,mode:mode,timestamp:new Date().toLocaleString()}].concat(vidR);renderG("vid",vidR);st.textContent="完成，耗时 "+tt+" 秒";toast("视频已生成","success");
+    vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:prompt,model:C.vidModel,duration:(nf/fr).toFixed(1)+" 秒",size:w+"x"+h,mode:mode,timestamp:new Date().toLocaleString()}].concat(vidR);if(vidR.length>50)vidR=vidR.slice(0,50);saveR("vid",vidR);renderG("vid",vidR);st.textContent="完成，耗时 "+tt+" 秒";toast("视频已生成","success");
   }catch(err){st.textContent="";toast(err.message,"error");}
   finally{btn.disabled=false;setTimeout(function(){pg.style.display="none";fl.style.width="0";},800);}
 }
@@ -321,6 +323,20 @@ function renderG(type,results){
       window.open(r.url,'_blank','noopener,noreferrer');
     });
     overlay.appendChild(openBtn);
+    if(r.type==='image'){
+      var refBtn=document.createElement('button');
+      refBtn.type='button';
+      refBtn.title='作为参考图';
+      refBtn.textContent='参考';
+      refBtn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();setRef(r.url);});
+      overlay.appendChild(refBtn);
+    }
+    var delBtn=document.createElement('button');
+    delBtn.type='button';
+    delBtn.title='删除';
+    delBtn.textContent='删';
+    delBtn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();delR(type,r.id);});
+    overlay.appendChild(delBtn);
 
     var btn=document.createElement('button');
     btn.type='button';
@@ -338,6 +354,8 @@ function renderG(type,results){
   c.appendChild(wrap);
 }
 
+function delR(type,id){if(type==="img"){imgR=imgR.filter(function(x){return x.id!==id;});saveR("img",imgR);renderG("img",imgR);}else{vidR=vidR.filter(function(x){return x.id!==id;});saveR("vid",vidR);renderG("vid",vidR);}}
+function setRef(u){document.querySelector('[data-tab="image"]').click();document.querySelector('[data-imgmode="img2img"]').click();document.getElementById("imgRefUrl").value=u;toast("已设为图生图参考图","success");}
 async function dlF(u,n){
   try{
     if(u.indexOf('data:')===0||u.indexOf('blob:')===0){
@@ -351,7 +369,7 @@ async function dlF(u,n){
 }
 function toast(m,t){var el=document.getElementById("toast");el.textContent=m;el.className="toast show "+t;setTimeout(function(){el.className="toast";},3000);}
 var _pv=1;document.addEventListener("visibilitychange",function(){_pv=document.hidden?0:1;});
-renderG("img",[]);renderG("vid",[]);
+renderG("img",imgR);renderG("vid",vidR);
 </script>
 </body>
 </html>
