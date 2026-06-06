@@ -231,6 +231,11 @@ document.getElementById("settingsBtn").onclick=function(){document.getElementByI
 document.getElementById("settingsCancel").onclick=function(){modal.classList.remove("open");};
 modal.onclick=function(e){if(e.target===modal)modal.classList.remove("open");};
 document.getElementById("settingsSave").onclick=function(){C.imgApiUrl=document.getElementById("cfgImgUrl").value.trim()||D.imgApiUrl;C.imgModel=document.getElementById("cfgImgModel").value.trim()||D.imgModel;C.vidApiUrl=document.getElementById("cfgVidUrl").value.trim()||D.vidApiUrl;C.vidModel=document.getElementById("cfgVidModel").value.trim()||D.vidModel;C.vidQueryUrl=document.getElementById("cfgVidQueryUrl").value.trim()||D.vidQueryUrl;saveC(C);modal.classList.remove("open");toast("设置已保存","success");};
+function proxyFetch(targetUrl,opts){
+  var headers=opts&&opts.headers||{};
+  var body=opts&&opts.body?JSON.parse(opts.body):null;
+  return fetch("/api/proxy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({targetUrl:targetUrl,method:opts&&opts.method||"POST",headers:headers,body:body})});
+}
 document.getElementById("imgGenerate").onclick=genImg;
 async function genImg(){
   var prompt=document.getElementById("imgPrompt").value.trim();
@@ -244,7 +249,7 @@ async function genImg(){
     var body={model:C.imgModel,prompt:prompt,size:size};
     if(fmt==="base64")body.return_base64=true;else body.extra_body={response_format:"url"};
     if(mode==="img2img"){if(!imgB64)return toast("请上传参考图片","error");body.image=[imgB64];if(fmt==="base64")body.extra_body={response_format:"b64_json"};}
-    var resp=await fetch(C.imgApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)});
+    var resp=await proxyFetch(C.imgApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)});
     fl.style.width="80%";
     if(!resp.ok){var et=await resp.text(),em;try{em=JSON.parse(et).error.message||JSON.parse(et).error||et;}catch(e){em=et;}throw new Error(em);}
     var data=await resp.json();fl.style.width="100%";
@@ -269,14 +274,14 @@ async function genVid(){
     if(mode==="img2vid"){if(vidImgs.length<1)return toast("请上传图片","error");body.image=vidImgs[0];}
     else if(mode==="multi"){if(vidImgs.length<1)return toast("请上传参考图片","error");body.extra_body={image:vidImgs};}
     else if(mode==="keyframe"){if(vidImgs.length<2)return toast("请上传至少 2 张关键帧图片","error");body.extra_body={image:vidImgs,mode:"keyframes"};}
-    var cr=await fetch(C.vidApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)});
+    var cr=await proxyFetch(C.vidApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)});
     fl.style.width="25%";
     if(!cr.ok){var et=await cr.text(),em;try{em=JSON.parse(et).error.message||JSON.parse(et).error||et;}catch(e){em=et;}throw new Error(em);}
     var td=await cr.json(),vid=td.video_id,tid=td.task_id||td.id;
     st.innerHTML='<span class="spinner"></span>处理中...';fl.style.width="35%";
     var pUrl=vid?C.vidQueryUrl+"?video_id="+vid:C.vidApiUrl+"/"+tid;
     var maxW=600000,iv=4000,vUrl=null;
-    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,iv);});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await fetch(pUrl,{headers:{"Authorization":"Bearer "+C.apiKey}});if(!pr.ok)continue;var res=await pr.json();if(res.status==="completed"||res.status==="succeeded"){vUrl=res.remixed_from_video_id||res.video_url||res.output&&res.output.video_url;break;}if(res.status==="failed"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");}
+    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,iv);});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await proxyFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}});if(!pr.ok)continue;var res=await pr.json();if(res.status==="completed"||res.status==="succeeded"){vUrl=res.remixed_from_video_id||res.video_url||res.output&&res.output.video_url;break;}if(res.status==="failed"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");}
     if(!vUrl)throw new Error("超时：等待 "+Math.round((Date.now()-t0)/1000)+" 秒后仍未完成");fl.style.width="100%";var tt=((Date.now()-t0)/1000).toFixed(1);
     vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:prompt,model:C.vidModel,duration:(nf/fr).toFixed(1)+" 秒",size:w+"x"+h,mode:mode,timestamp:new Date().toLocaleString()}].concat(vidR);renderG("vid",vidR);st.textContent="完成，耗时 "+tt+" 秒";toast("视频已生成","success");
   }catch(err){st.textContent="";toast(err.message,"error");}
@@ -298,7 +303,18 @@ function renderG(type,results){
   htmlStr+="</div>";
   c.innerHTML=htmlStr;
 }
-function dlF(u,n){var a=document.createElement("a");a.href=u;a.download=n;a.click();}
+async function dlF(u,n){
+  try{
+    var resp=await fetch(u);
+    var blob=await resp.blob();
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=url;a.download=n;a.click();
+    setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  }catch(e){
+    window.open(u,"_blank");
+  }
+}
 function toast(m,t){var el=document.getElementById("toast");el.textContent=m;el.className="toast show "+t;setTimeout(function(){el.className="toast";},3000);}
 renderG("img",[]);renderG("vid",[]);
 </script>
