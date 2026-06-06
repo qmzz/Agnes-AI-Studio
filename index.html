@@ -232,9 +232,12 @@ document.getElementById("settingsCancel").onclick=function(){modal.classList.rem
 modal.onclick=function(e){if(e.target===modal)modal.classList.remove("open");};
 document.getElementById("settingsSave").onclick=function(){C.imgApiUrl=document.getElementById("cfgImgUrl").value.trim()||D.imgApiUrl;C.imgModel=document.getElementById("cfgImgModel").value.trim()||D.imgModel;C.vidApiUrl=document.getElementById("cfgVidUrl").value.trim()||D.vidApiUrl;C.vidModel=document.getElementById("cfgVidModel").value.trim()||D.vidModel;C.vidQueryUrl=document.getElementById("cfgVidQueryUrl").value.trim()||D.vidQueryUrl;saveC(C);modal.classList.remove("open");toast("设置已保存","success");};
 function proxyFetch(targetUrl,opts){
-  var headers=opts&&opts.headers||{};
-  var body=opts&&opts.body?JSON.parse(opts.body):null;
-  return fetch("/api/proxy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({targetUrl:targetUrl,method:opts&&opts.method||"POST",headers:headers,body:body})});
+  return fetch("/api/proxy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({targetUrl:targetUrl,method:opts&&opts.method||"POST",headers:opts&&opts.headers||{},body:opts&&opts.body?JSON.parse(opts.body):null})}).then(function(resp){
+    if(resp.ok)return resp;
+    throw new Error("proxy failed");
+  }).catch(function(){
+    return fetch(targetUrl,opts);
+  });
 }
 document.getElementById("imgGenerate").onclick=genImg;
 async function genImg(){
@@ -303,17 +306,12 @@ function renderG(type,results){
   htmlStr+="</div>";
   c.innerHTML=htmlStr;
 }
-async function dlF(u,n){
-  try{
-    var resp=await fetch(u);
-    var blob=await resp.blob();
+function dlF(u,n){
+  fetch(u).then(function(resp){return resp.blob();}).then(function(blob){
     var url=URL.createObjectURL(blob);
-    var a=document.createElement("a");
-    a.href=url;a.download=n;a.click();
+    var a=document.createElement("a");a.href=url;a.download=n;a.click();
     setTimeout(function(){URL.revokeObjectURL(url);},1000);
-  }catch(e){
-    window.open(u,"_blank");
-  }
+  }).catch(function(){window.open(u,"_blank");});
 }
 function toast(m,t){var el=document.getElementById("toast");el.textContent=m;el.className="toast show "+t;setTimeout(function(){el.className="toast";},3000);}
 renderG("img",[]);renderG("vid",[]);
