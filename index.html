@@ -246,7 +246,7 @@ async function genImg(){
     var t0=Date.now(),size=document.getElementById("imgSize").value,fmt=document.getElementById("imgFormat").value;
     var body={model:C.imgModel,prompt:prompt,size:size};
     if(fmt==="base64")body.return_base64=true;else body.extra_body={response_format:"url"};
-    if(mode==="img2img"){if(!imgB64)return toast("请上传参考图片","error");body.image=[imgB64];if(fmt==="base64")body.extra_body={response_format:"b64_json"};}
+    if(mode==="img2img"){if(!imgB64)return toast("请上传参考图片","error");if(imgB64.length>20*1024*1024)return toast("图片过大，请压缩后再试","error");body.image=[imgB64];if(fmt==="base64")body.extra_body={response_format:"b64_json"};}
     var resp=await apiFetch(C.imgApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)});
     fl.style.width="80%";
     if(!resp.ok){var et=await resp.text(),em;try{em=JSON.parse(et).error.message||JSON.parse(et).error||et;}catch(e){em=et;}throw new Error(em);}
@@ -281,8 +281,8 @@ async function genVid(){
     var tid=td.task_id||td.taskId||td.id||td.data&&td.data.task_id||td.result&&td.result.task_id;
     st.innerHTML='<span class="spinner"></span>处理中...';fl.style.width="35%";
     var pUrl=vid?C.vidQueryUrl+"?video_id="+encodeURIComponent(vid):tid?C.vidApiUrl+"/"+encodeURIComponent(tid):C.vidQueryUrl;
-    var maxW=600000,iv=4000,vUrl=null;
-    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,iv);});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}});if(!pr.ok)continue;var res=await pr.json();var s=String(res.status||res.state||res.task_status||"").toLowerCase();if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.remixed_from_video_id||res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");if(s==="submitted"||s==="queued"||s==="running"||s==="processing"||s==="pending"||!s)continue;}
+    var maxW=600000,iv=4000,vUrl=null,errCount=0;
+    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,iv);});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}});if(!pr.ok){errCount++;if(errCount>=3)throw new Error("轮询连续失败 "+errCount+" 次，HTTP "+pr.status);continue;}var res=await pr.json();errCount=0;var s=String(res.status||res.state||res.task_status||"").toLowerCase();if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");if(s==="submitted"||s==="queued"||s==="running"||s==="processing"||s==="pending"||!s)continue;}
     if(!vUrl)throw new Error("超时：等待 "+Math.round((Date.now()-t0)/1000)+" 秒后仍未完成");fl.style.width="100%";var tt=((Date.now()-t0)/1000).toFixed(1);
     vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:prompt,model:C.vidModel,duration:(nf/fr).toFixed(1)+" 秒",size:w+"x"+h,mode:mode,timestamp:new Date().toLocaleString()}].concat(vidR);renderG("vid",vidR);st.textContent="完成，耗时 "+tt+" 秒";toast("视频已生成","success");
   }catch(err){st.textContent="";toast(err.message,"error");}
@@ -356,16 +356,16 @@ function renderG(type,results){
   c.appendChild(wrap);
 }
 
-function dlF(u,n){
-  var a=document.createElement('a');
-  a.href=u;
-  a.download=n;
-  a.target='_blank';
-  a.rel='noopener noreferrer';
-  a.style.display='none';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+async function dlF(u,n){
+  try{
+    if(u.indexOf('data:')===0||u.indexOf('blob:')===0){
+      var a=document.createElement('a');a.href=u;a.download=n;a.style.display='none';document.body.appendChild(a);a.click();document.body.removeChild(a);return;
+    }
+    var resp=await fetch(u,{mode:'cors'});if(!resp.ok)throw 0;
+    var blob=await resp.blob();var objUrl=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=objUrl;a.download=n;a.style.display='none';document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(objUrl);},60000);
+  }catch(e){window.open(u,'_blank','noopener,noreferrer');}
 }
 function toast(m,t){var el=document.getElementById("toast");el.textContent=m;el.className="toast show "+t;setTimeout(function(){el.className="toast";},3000);}
 renderG("img",[]);renderG("vid",[]);
