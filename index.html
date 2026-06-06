@@ -292,26 +292,65 @@ async function genVid(){
 }
 function renderG(type,results){
   var c=document.getElementById(type+"Gallery");
-  if(!results.length){c.innerHTML='<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><p>还没有生成结果</p></div>';return;}
-  var htmlStr="<div class=\"gallery\">";
+  if(!results.length){c.innerHTML='<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><p>???????</p></div>';return;}
+  c.innerHTML='';
+  var wrap=document.createElement('div');
+  wrap.className='gallery';
   results.forEach(function(r){
-    var b=r.mode||"";
-    var u=JSON.stringify(r.url);
-    if(r.type==="video"){
-      htmlStr+="<div class=\"gallery-item video-item\" onclick=\"window.open("+u+",\"_blank\")\"><video src=\""+r.url+"\" muted loop playsinline onmouseenter=\"this.play()\" onmouseleave=\"this.pause()\"></video>"+(b?"<span class=\"badge\">"+b+"</span>":"")+"<div class=\"overlay\"><button onclick=\"event.stopPropagation();dlF("+u+",\"video_"+r.id+".mp4\")\">下载</button></div></div>";
+    var item=document.createElement('div');
+    item.className='gallery-item '+(r.type==='video'?'video-item':'img-item');
+    item.addEventListener('click',function(){window.open(r.url,'_blank');});
+
+    if(r.type==='video'){
+      var video=document.createElement('video');
+      video.src=r.url;
+      video.muted=true;
+      video.loop=true;
+      video.playsInline=true;
+      video.addEventListener('mouseenter',function(){video.play();});
+      video.addEventListener('mouseleave',function(){video.pause();});
+      item.appendChild(video);
     } else {
-      htmlStr+="<div class=\"gallery-item img-item\" onclick=\"window.open("+u+",\"_blank\")\"><img src=\""+r.url+"\" alt=\""+r.prompt.replace(/"/g,"&quot;")+"\" loading=\"lazy\">"+(b?"<span class=\"badge\">"+b+"</span>":"")+"<div class=\"overlay\"><button onclick=\"event.stopPropagation();dlF("+u+",\"image_"+r.id+".png\")\">下载</button></div></div>";
+      var img=document.createElement('img');
+      img.src=r.url;
+      img.alt=r.prompt;
+      img.loading='lazy';
+      item.appendChild(img);
     }
+
+    if(r.mode){
+      var badge=document.createElement('span');
+      badge.className='badge';
+      badge.textContent=r.mode;
+      item.appendChild(badge);
+    }
+
+    var overlay=document.createElement('div');
+    overlay.className='overlay';
+    var btn=document.createElement('button');
+    btn.textContent='??';
+    btn.addEventListener('click',function(e){
+      e.stopPropagation();
+      dlF(r.url,(r.type==='video'?'video_':'image_')+r.id+(r.type==='video'?'.mp4':'.png'));
+    });
+    overlay.appendChild(btn);
+    item.appendChild(overlay);
+    wrap.appendChild(item);
   });
-  htmlStr+="</div>";
-  c.innerHTML=htmlStr;
+  c.appendChild(wrap);
 }
+
 function dlF(u,n){
-  if(u.indexOf("data:")===0){
-    var a=document.createElement("a");a.href=u;a.download=n;document.body.appendChild(a);a.click();document.body.removeChild(a);
-  }else{
-    window.open(u,"_blank");
+  if(u.indexOf('data:')===0){
+    var a=document.createElement('a');
+    a.href=u;
+    a.download=n;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
   }
+  window.open(u,'_blank');
 }
 function toast(m,t){var el=document.getElementById("toast");el.textContent=m;el.className="toast show "+t;setTimeout(function(){el.className="toast";},3000);}
 renderG("img",[]);renderG("vid",[]);
