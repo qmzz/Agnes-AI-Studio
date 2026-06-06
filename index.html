@@ -276,11 +276,13 @@ async function genVid(){
     var cr=await apiFetch(C.vidApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)});
     fl.style.width="25%";
     if(!cr.ok){var et=await cr.text(),em;try{em=JSON.parse(et).error.message||JSON.parse(et).error||et;}catch(e){em=et;}throw new Error(em);}
-    var td=await cr.json(),vid=td.video_id,tid=td.task_id||td.id;
+    var td=await cr.json();
+    var vid=td.video_id||td.videoId||td.data&&td.data.video_id||td.result&&td.result.video_id;
+    var tid=td.task_id||td.taskId||td.id||td.data&&td.data.task_id||td.result&&td.result.task_id;
     st.innerHTML='<span class="spinner"></span>处理中...';fl.style.width="35%";
-    var pUrl=vid?C.vidQueryUrl+"?video_id="+vid:C.vidApiUrl+"/"+tid;
+    var pUrl=vid?C.vidQueryUrl+"?video_id="+encodeURIComponent(vid):tid?C.vidApiUrl+"/"+encodeURIComponent(tid):C.vidQueryUrl;
     var maxW=600000,iv=4000,vUrl=null;
-    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,iv);});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}});if(!pr.ok)continue;var res=await pr.json();if(res.status==="completed"||res.status==="succeeded"){vUrl=res.remixed_from_video_id||res.video_url||res.output&&res.output.video_url;break;}if(res.status==="failed"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");}
+    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,iv);});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}});if(!pr.ok)continue;var res=await pr.json();var s=String(res.status||res.state||res.task_status||"").toLowerCase();if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.remixed_from_video_id||res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");if(s==="submitted"||s==="queued"||s==="running"||s==="processing"||s==="pending"||!s)continue;}
     if(!vUrl)throw new Error("超时：等待 "+Math.round((Date.now()-t0)/1000)+" 秒后仍未完成");fl.style.width="100%";var tt=((Date.now()-t0)/1000).toFixed(1);
     vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:prompt,model:C.vidModel,duration:(nf/fr).toFixed(1)+" 秒",size:w+"x"+h,mode:mode,timestamp:new Date().toLocaleString()}].concat(vidR);renderG("vid",vidR);st.textContent="完成，耗时 "+tt+" 秒";toast("视频已生成","success");
   }catch(err){st.textContent="";toast(err.message,"error");}
