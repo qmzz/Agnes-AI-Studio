@@ -23,25 +23,19 @@
 
 ## 部署方式
 
-### 方式一：Cloudflare Pages（推荐，纯静态）
+### 方式一：Cloudflare Pages（纯静态，最简单）
 
-直接将 `index.html` 部署到 Cloudflare Pages：
-
-1. 在 Cloudflare 控制台创建 Pages 项目
-2. 上传 `index.html` 文件
-3. 绑定自定义域名（可选）
-
-适用于 API 支持 CORS 的场景。
+1. 在 Cloudflare 控制台进入 **Workers & Pages**
+2. 点击 **Create**，选择 **Pages**，上传 `index.html` 一个文件即可
+3. 部署完成后会得到一个 `xxx.pages.dev` 的访问地址
+4. 可选：在 **Custom domains** 绑定自己的域名
 
 ### 方式二：Cloudflare Workers
 
-通过 Worker 提供 HTML 服务：
-
-```bash
-npm install -g wrangler
-wrangler login
-wrangler deploy
-```
+1. 在 Cloudflare 控制台进入 **Workers & Pages**
+2. 点击 **Create**，创建一个 Worker
+3. 将 `worker.js` 和 `index.html` 的内容分别放入同名文件，保存并部署
+4. 部署完成后访问 `https://<名称>.<子域>.workers.dev/`
 
 ## 使用
 
@@ -57,6 +51,6 @@ wrangler deploy
 
 ```
 ├── index.html      # 前端页面（单文件，可独立使用）
-├── worker.js       # Cloudflare Worker（可选，用于 HTML 服务）
+├── worker.js       # Cloudflare Worker（可选，用于服务端 HTML 服务）
 └── wrangler.toml   # Wrangler 部署配置（可选）
 ```
