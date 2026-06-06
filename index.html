@@ -165,11 +165,7 @@ label{display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-
 <option value="720x1280">720 x 1280</option>
 </select></div>
 <div><label>帧数</label><select class="select" id="vidFrames">
-<option value="81">81 (3秒)</option>
-<option value="121" selected>121 (5秒)</option>
-<option value="161">161 (7秒)</option>
-<option value="241">241 (10秒)</option>
-<option value="441">441 (18秒)</option>
+
 </select></div>
 <div><label>帧率</label><select class="select" id="vidFps">
 <option value="16">16</option>
@@ -263,6 +259,7 @@ async function genImg(){
   finally{btn.disabled=false;setTimeout(function(){pg.style.display="none";fl.style.width="0";},800);}
 }
 document.getElementById("vidGenerate").onclick=genVid;
+(function(){var vidFpsEl=document.getElementById("vidFps"),vidFramesEl=document.getElementById("vidFrames");var durations=[3,5,7,10,18];function updateFrames(){var fps=parseInt(vidFpsEl.value);var prevVal=vidFramesEl.value;vidFramesEl.innerHTML="";durations.forEach(function(d){var n=fps*d+1;if(n>441)return;var opt=document.createElement("option");opt.value=n;opt.textContent=n+" ("+d+"秒)";if(n==121)opt.selected=true;vidFramesEl.appendChild(opt);});if(prevVal){var found=false;for(var i=0;i<vidFramesEl.options.length;i++){if(vidFramesEl.options[i].value===prevVal){vidFramesEl.selectedIndex=i;found=true;break;}}if(!found&&vidFramesEl.options.length>1)vidFramesEl.selectedIndex=1;}}vidFpsEl.addEventListener("change",updateFrames);updateFrames();})();
 async function genVid(){
   var prompt=document.getElementById("vidPrompt").value.trim();
   if(!prompt)return toast("请输入提示词","error");
