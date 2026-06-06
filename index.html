@@ -213,7 +213,7 @@ function apiFetch(targetUrl,opts,timeoutMs){
   var ctrl=new AbortController();
   requestOpts.signal=ctrl.signal;
   var timer=setTimeout(function(){ctrl.abort();},timeoutMs||60000);
-  return fetch(targetUrl,requestOpts).finally(function(){clearTimeout(timer);});
+  return fetch(targetUrl,requestOpts).catch(function(e){if(e.name==="AbortError")throw new Error("请求超时，请稍后重试");throw e;}).finally(function(){clearTimeout(timer);});
 }
 document.getElementById("imgGenerate").onclick=genImg;
 async function genImg(){
@@ -228,7 +228,7 @@ async function genImg(){
     var body={model:C.imgModel,prompt:prompt,size:size};
     body.extra_body={response_format:"url"};
     if(mode==="img2img"){var ref=document.getElementById("imgRefUrl").value.trim();if(!ref)return toast("请输入参考图 URL","error");body.tags=["img2img"];body.extra_body={image:[ref],response_format:"url"};}
-    var resp=await apiFetch(C.imgApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)});
+    var resp=await apiFetch(C.imgApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)},300000);
     fl.style.width="80%";
     if(!resp.ok){var et=await resp.text(),em;try{em=JSON.parse(et).error.message||JSON.parse(et).error||et;}catch(e){em=et;}throw new Error(em);}
     var data=await resp.json();fl.style.width="100%";
@@ -254,7 +254,7 @@ async function genVid(){
     if(mode==="img2vid"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<1)return toast("请输入参考图 URL","error");body.image=urls[0];}
     else if(mode==="multi"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<1)return toast("请输入参考图 URL","error");body.extra_body={image:urls};}
     else if(mode==="keyframe"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<2)return toast("请输入至少 2 个关键帧 URL","error");body.extra_body={image:urls,mode:"keyframes"};}
-    var cr=await apiFetch(C.vidApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)});
+    var cr=await apiFetch(C.vidApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)},120000);
     fl.style.width="25%";
     if(!cr.ok){var et=await cr.text(),em;try{em=JSON.parse(et).error.message||JSON.parse(et).error||et;}catch(e){em=et;}throw new Error(em);}
     var td=await cr.json();
@@ -263,7 +263,7 @@ async function genVid(){
     st.innerHTML='<span class="spinner"></span>处理中...';fl.style.width="35%";
     var pUrl=vid?C.vidQueryUrl+"?video_id="+encodeURIComponent(vid):tid?C.vidApiUrl+"/"+encodeURIComponent(tid):C.vidQueryUrl;
     var maxW=600000,iv=2000,vUrl=null,errCount=0;
-    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,_pv?iv:Math.max(iv,8000));});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}});if(!pr.ok){errCount++;if(errCount>=3)throw new Error("轮询连续失败 "+errCount+" 次，HTTP "+pr.status);continue;}var res=await pr.json();errCount=0;var s=String(res.status||res.state||res.task_status||"").toLowerCase();if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");if(s==="submitted"||s==="queued"||s==="running"||s==="processing"||s==="pending"||!s)continue;}
+    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,_pv?iv:Math.max(iv,8000));});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}},30000);if(!pr.ok){errCount++;if(errCount>=3)throw new Error("轮询连续失败 "+errCount+" 次，HTTP "+pr.status);continue;}var res=await pr.json();errCount=0;var s=String(res.status||res.state||res.task_status||"").toLowerCase();if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");if(s==="submitted"||s==="queued"||s==="running"||s==="processing"||s==="pending"||!s)continue;}
     if(!vUrl)throw new Error("超时：等待 "+Math.round((Date.now()-t0)/1000)+" 秒后仍未完成");fl.style.width="100%";var tt=((Date.now()-t0)/1000).toFixed(1);
     vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:prompt,model:C.vidModel,duration:(nf/fr).toFixed(1)+" 秒",size:w+"x"+h,mode:mode,timestamp:new Date().toLocaleString()}].concat(vidR);if(vidR.length>50)vidR=vidR.slice(0,50);saveR("vid",vidR);renderG("vid",vidR);st.textContent="完成，耗时 "+tt+" 秒";toast("视频已生成","success");
   }catch(err){st.textContent="";toast(err.message,"error");}
