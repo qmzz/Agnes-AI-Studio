@@ -45,6 +45,12 @@
 2. 使用仓库中的 `wrangler.toml` 和 `worker.js` 部署。
 3. Worker 会返回 `index.html` 页面，并保留 `/api/proxy` 代理能力供扩展使用。
 
+## 发布前检查
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/check.ps1
+```
+
 ## 项目结构
 
 ```text
@@ -52,5 +58,7 @@
 ├── worker.js       # Cloudflare Worker 入口
 ├── wrangler.toml   # Wrangler 配置
 ├── README.md       # 项目说明
+├── CHANGELOG.md    # 版本变更记录
+├── scripts/check.ps1 # 发布前检查脚本
 └── LICENSE
 ```
