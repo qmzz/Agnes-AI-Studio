@@ -63,6 +63,7 @@ label{display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-
 .toast.show{opacity:1}
 .toast.success{background:var(--success);color:#fff}
 .toast.error{background:var(--error);color:#fff}
+.history-tools{display:flex;justify-content:flex-end;margin-bottom:8px}.history-tools .select{max-width:150px}
 .empty{text-align:center;padding:40px 20px;color:var(--text-dim);font-size:13px}
 .empty svg{margin-bottom:8px;opacity:.3}
 .img2img-upload{border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;font-size:12px;color:var(--text-dim)}
@@ -131,6 +132,7 @@ label{display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-
 </div>
 <div class="progress-bar" id="imgProgress" style="display:none"><div class="progress-fill"></div></div>
 </div>
+<div class="history-tools"><select class="select" id="imgFilter"><option value="all">全部图片</option><option value="T2I">文生图</option><option value="I2I">图生图</option></select></div>
 <div id="imgGallery"></div>
 </div>
 <div id="videoPanel" style="display:none">
@@ -170,6 +172,7 @@ label{display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-
 </div>
 <div class="progress-bar" id="vidProgress" style="display:none"><div class="progress-fill"></div></div>
 </div>
+<div class="history-tools"><select class="select" id="vidFilter"><option value="all">全部视频</option><option value="txt2vid">文生视频</option><option value="img2vid">图生视频</option><option value="multi">多图参考</option><option value="keyframe">关键帧</option><option value="resume">恢复任务</option></select></div>
 <div id="vidGallery"></div>
 </div>
 </div>
@@ -336,6 +339,20 @@ function renderG(type,results){
       refBtn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();setRef(r.url);});
       overlay.appendChild(refBtn);
     }
+    var copyBtn=document.createElement('button');
+    copyBtn.type='button';
+    copyBtn.title='复制 URL';
+    copyBtn.textContent='复制';
+    copyBtn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();copyUrl(r.url);});
+    overlay.appendChild(copyBtn);
+    if(r.type==='image'){
+      var vidRefBtn=document.createElement('button');
+      vidRefBtn.type='button';
+      vidRefBtn.title='作为图生视频参考';
+      vidRefBtn.textContent='视频';
+      vidRefBtn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();setVideoRef(r.url);});
+      overlay.appendChild(vidRefBtn);
+    }
     var delBtn=document.createElement('button');
     delBtn.type='button';
     delBtn.title='删除';
@@ -357,6 +374,8 @@ function renderG(type,results){
 
 function delR(type,id){if(type==="img"){imgR=imgR.filter(function(x){return x.id!==id;});saveR("img",imgR);renderG("img",imgR);}else{vidR=vidR.filter(function(x){return x.id!==id;});saveR("vid",vidR);renderG("vid",vidR);}}
 function setRef(u){document.querySelector('[data-tab="image"]').click();document.querySelector('[data-imgmode="img2img"]').click();document.getElementById("imgRefUrl").value=u;toast("已设为图生图参考图","success");}
+function setVideoRef(u){document.querySelector('[data-tab="video"]').click();document.querySelector('[data-vidmode="img2vid"]').click();document.getElementById("vidRefUrls").value=u;toast("已设为图生视频参考图","success");}
+function copyUrl(u){if(navigator.clipboard){navigator.clipboard.writeText(u).then(function(){toast("URL 已复制","success");}).catch(function(){prompt("复制 URL",u);});}else{prompt("复制 URL",u);}}
 function dlF(u,n){
   var a=document.createElement('a');
   a.href=u;
@@ -371,6 +390,7 @@ function dlF(u,n){
 function toast(m,t){var el=document.getElementById("toast");el.textContent=m;el.className="toast show "+t;setTimeout(function(){el.className="toast";},3000);}
 var _pv=1;document.addEventListener("visibilitychange",function(){_pv=document.hidden?0:1;});
 async function resumePendingVideo(){var raw=localStorage.getItem("agnes-pending-video");if(!raw)return;var task;try{task=JSON.parse(raw);}catch(e){clearPendingVideo();return;}var st=document.getElementById("vidStatus"),pg=document.getElementById("vidProgress"),fl=pg.querySelector(".progress-fill"),btn=document.getElementById("vidGenerate");btn.disabled=true;pg.style.display="block";fl.style.width="35%";toast("正在恢复未完成的视频任务","success");try{var maxW=600000,iv=2000,vUrl=null,errCount=0,t0=task.t0||Date.now();while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,_pv?iv:Math.max(iv,8000));});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>恢复处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(task.pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}},30000);if(!pr.ok){errCount++;if(errCount>=3)throw new Error("轮询连续失败 "+errCount+" 次，HTTP "+pr.status);continue;}var res=await pr.json();errCount=0;var s=String(res.status||res.state||res.task_status||"").toLowerCase();if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");}if(!vUrl)throw new Error("恢复任务超时");clearPendingVideo();vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:task.prompt||"",model:task.model||C.vidModel,duration:(task.nf/task.fr).toFixed(1)+" 秒",size:task.w+"x"+task.h,mode:task.mode||"resume",timestamp:new Date().toLocaleString()}].concat(vidR);if(vidR.length>50)vidR=vidR.slice(0,50);saveR("vid",vidR);renderG("vid",vidR);st.textContent="恢复完成";toast("视频任务已恢复完成","success");}catch(err){st.textContent="";toast(friendlyErr(err),"error");}finally{btn.disabled=false;setTimeout(function(){pg.style.display="none";fl.style.width="0";},800);}}
+document.getElementById("imgFilter").onchange=function(){renderG("img",imgR);};document.getElementById("vidFilter").onchange=function(){renderG("vid",vidR);};
 renderG("img",imgR);renderG("vid",vidR);resumePendingVideo();
 </script>
 </body>
