@@ -58,6 +58,10 @@ label{display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-
 .gallery-item .badge{position:absolute;top:6px;left:6px;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(0,0,0,.6);color:#fff}
 .progress-bar{width:100%;height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin:10px 0}
 .progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:3px;transition:width .3s;width:0}
+.task-log{display:none;margin:10px 0 0;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;font-size:12px;line-height:1.5;color:var(--text-dim);white-space:pre-wrap;word-break:break-word}
+.task-log.show{display:block}
+.task-log.error{border-color:rgba(239,68,68,.45);color:var(--error)}
+.task-log.success{border-color:rgba(34,197,94,.45);color:var(--success)}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
@@ -174,6 +178,7 @@ label{display:block;font-size:12px;font-weight:500;color:var(--text-dim);margin-
 <span id="vidStatus" style="font-size:12px;color:var(--text-dim)"></span>
 </div>
 <div class="progress-bar" id="vidProgress" style="display:none"><div class="progress-fill"></div></div>
+<div class="task-log" id="vidTaskLog"></div>
 </div>
 <div class="history-tools"><select class="select" id="vidFilter"><option value="all">全部视频</option><option value="txt2vid">文生视频</option><option value="img2vid">图生视频</option><option value="multi">多图参考</option><option value="keyframe">关键帧</option><option value="resume">恢复任务</option></select></div>
 <div id="vidGallery"></div>
@@ -204,6 +209,11 @@ function saveR(t,r){var k="agnes-"+t+"-results";try{localStorage.setItem(k,JSON.
 function friendlyErr(err){var m=err&&err.message?err.message:String(err||"");if(/401|403/.test(m))return "API Key 无效或无权限";if(/429/.test(m))return "请求过于频繁，请稍后再试";if(/insufficient|balance|quota|余额|额度/i.test(m))return "余额或额度不足";if(/AbortError|超时|timeout/i.test(m))return "请求超时，请稍后重试";return m||"请求失败";}
 function savePendingVideo(t){localStorage.setItem("agnes-pending-video",JSON.stringify(t));}
 function clearPendingVideo(){localStorage.removeItem("agnes-pending-video");}
+function showVidTask(kind,msg){var el=document.getElementById("vidTaskLog");if(!el)return;el.textContent=msg;el.className="task-log show"+(kind?" "+kind:"");try{localStorage.setItem("agnes-video-task-log",JSON.stringify({kind:kind||"",msg:msg,ts:Date.now()}));}catch(e){}}
+function clearVidTask(){var el=document.getElementById("vidTaskLog");if(!el)return;el.textContent="";el.className="task-log";localStorage.removeItem("agnes-video-task-log");}
+function loadVidTask(){var raw=localStorage.getItem("agnes-video-task-log");if(!raw)return;try{var x=JSON.parse(raw);if(x&&x.msg)showVidTask(x.kind||"",x.msg);}catch(e){localStorage.removeItem("agnes-video-task-log");}}
+function dataErr(d){var e=d&&(d.error||d.message||d.msg||d.detail||d.reason||d.data&&d.data.error||d.result&&d.result.error);if(!e)return "";return typeof e==="string"?e:e.message?e.message:JSON.stringify(e);}
+async function respErr(r){var t=await r.text();try{var j=JSON.parse(t);return dataErr(j)||t||("HTTP "+r.status);}catch(e){return t||("HTTP "+r.status);}}
 const root=document.documentElement,th=localStorage.getItem("agnes-th")||"dark";
 root.setAttribute("data-theme",th);ui(th);
 document.getElementById("themeToggle").onclick=function(){const n=root.getAttribute("data-theme")==="dark"?"light":"dark";root.setAttribute("data-theme",n);localStorage.setItem("agnes-th",n);ui(n);};
@@ -258,27 +268,29 @@ async function genVid(){
   if(!C.apiKey)return toast("请输入 API Key","error");
   var btn=document.getElementById("vidGenerate"),st=document.getElementById("vidStatus"),pg=document.getElementById("vidProgress"),fl=pg.querySelector(".progress-fill");
   var mode=document.querySelector("[data-vidmode].active").dataset.vidmode;
-  if(btn.disabled)return;btn.disabled=true;st.innerHTML='<span class="spinner"></span>提交中...';pg.style.display="block";fl.style.width="10%";
+  if(btn.disabled)return;clearVidTask();btn.disabled=true;st.innerHTML='<span class="spinner"></span>提交中...';pg.style.display="block";fl.style.width="10%";
   try{
     var t0=Date.now(),sz=document.getElementById("vidSize").value.split("x"),w=parseInt(sz[0]),h=parseInt(sz[1]),nf=parseInt(document.getElementById("vidFrames").value),fr=parseInt(document.getElementById("vidFps").value);
     var body={model:C.vidModel,prompt:prompt,height:h,width:w,num_frames:nf,frame_rate:fr};
-    if(mode==="img2vid"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<1)return toast("请输入参考图 URL","error");body.image=urls[0];}
-    else if(mode==="multi"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<1)return toast("请输入参考图 URL","error");body.extra_body={image:urls};}
-    else if(mode==="keyframe"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<2)return toast("请输入至少 2 个关键帧 URL","error");body.extra_body={image:urls,mode:"keyframes"};}
+    showVidTask("","正在创建视频任务...\n模式："+mode+"\n参数："+w+"x"+h+" / "+nf+" 帧 / "+fr+" fps\n开始时间："+new Date(t0).toLocaleString());
+    if(mode==="img2vid"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<1){st.textContent="失败：缺少参考图 URL";showVidTask("error","缺少参考图 URL，任务未提交");return toast("请输入参考图 URL","error");}body.image=urls[0];}
+    else if(mode==="multi"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<1){st.textContent="失败：缺少参考图 URL";showVidTask("error","缺少参考图 URL，任务未提交");return toast("请输入参考图 URL","error");}body.extra_body={image:urls};}
+    else if(mode==="keyframe"){var urls=listUrls(document.getElementById("vidRefUrls").value);if(urls.length<2){st.textContent="失败：关键帧 URL 不足";showVidTask("error","关键帧模式至少需要 2 个参考图 URL，任务未提交");return toast("请输入至少 2 个关键帧 URL","error");}body.extra_body={image:urls,mode:"keyframes"};}
     var cr=await apiFetch(C.vidApiUrl,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+C.apiKey},body:JSON.stringify(body)},420000);
     fl.style.width="25%";
-    if(!cr.ok){var et=await cr.text(),em;try{em=JSON.parse(et).error.message||JSON.parse(et).error||et;}catch(e){em=et;}throw new Error(em);}
+    if(!cr.ok){var em=await respErr(cr);showVidTask("error","创建视频任务失败\nHTTP "+cr.status+"\n"+em);throw new Error(em||("HTTP "+cr.status));}
     var td=await cr.json();
     var vid=td.video_id||td.videoId||td.data&&td.data.video_id||td.result&&td.result.video_id;
     var tid=td.task_id||td.taskId||td.id||td.data&&td.data.task_id||td.result&&td.result.task_id;
     st.innerHTML='<span class="spinner"></span>处理中...';fl.style.width="35%";
     var pUrl=vid?C.vidQueryUrl+"?video_id="+encodeURIComponent(vid):tid?C.vidApiUrl+"/"+encodeURIComponent(tid):C.vidQueryUrl;
     savePendingVideo({pUrl:pUrl,prompt:prompt,model:C.vidModel,nf:nf,fr:fr,w:w,h:h,mode:mode,t0:t0});
-    var maxW=600000,iv=2000,vUrl=null,errCount=0;
-    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,_pv?iv:Math.max(iv,8000));});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}},30000);if(!pr.ok){errCount++;if(errCount>=3)throw new Error("轮询连续失败 "+errCount+" 次，HTTP "+pr.status);continue;}var res=await pr.json();errCount=0;var s=String(res.status||res.state||res.task_status||"").toLowerCase();if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error){clearPendingVideo();throw new Error(res.error&&res.error.message||res.error||"生成失败");}if(s==="submitted"||s==="queued"||s==="running"||s==="processing"||s==="pending"||!s)continue;}
-    if(!vUrl){clearPendingVideo();throw new Error("超时：等待 "+Math.round((Date.now()-t0)/1000)+" 秒后仍未完成");}fl.style.width="100%";var tt=((Date.now()-t0)/1000).toFixed(1);
-    clearPendingVideo();vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:prompt,model:C.vidModel,duration:(nf/fr).toFixed(1)+" 秒",size:w+"x"+h,mode:mode,timestamp:new Date().toLocaleString()}].concat(vidR);if(vidR.length>50)vidR=vidR.slice(0,50);saveR("vid",vidR);renderG("vid",vidR);st.textContent="完成，耗时 "+tt+" 秒";toast("视频已生成","success");
-  }catch(err){st.textContent="";toast(friendlyErr(err),"error");}
+    showVidTask("","任务已创建，正在查询结果...\n任务 ID："+(vid||tid||"未返回")+"\n查询地址："+pUrl);
+    var maxW=600000,iv=2000,vUrl=null,errCount=0,lastState="等待查询";
+    while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,_pv?iv:Math.max(iv,8000));});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}},30000);if(!pr.ok){errCount++;var pe=await respErr(pr);lastState="查询失败 HTTP "+pr.status;showVidTask("error","视频任务仍在查询，但最近一次查询失败\n已用时："+el+" 秒\n连续失败："+errCount+" 次\nHTTP "+pr.status+"\n"+pe);if(errCount>=3){clearPendingVideo();throw new Error("轮询连续失败 "+errCount+" 次，HTTP "+pr.status+"："+pe);}continue;}var res=await pr.json();errCount=0;var s=String(res.status||res.state||res.task_status||"").toLowerCase();lastState=s||"未返回状态";showVidTask("","视频生成查询中...\n已用时："+el+" 秒\n任务状态："+lastState+"\n查询地址："+pUrl);if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error){clearPendingVideo();throw new Error(dataErr(res)||"生成失败");}if(s==="submitted"||s==="queued"||s==="running"||s==="processing"||s==="pending"||!s)continue;}
+    if(!vUrl){clearPendingVideo();throw new Error("超时：等待 "+Math.round((Date.now()-t0)/1000)+" 秒后仍未完成，最后状态："+lastState);}fl.style.width="100%";var tt=((Date.now()-t0)/1000).toFixed(1);
+    clearPendingVideo();vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:prompt,model:C.vidModel,duration:(nf/fr).toFixed(1)+" 秒",size:w+"x"+h,mode:mode,timestamp:new Date().toLocaleString()}].concat(vidR);if(vidR.length>50)vidR=vidR.slice(0,50);saveR("vid",vidR);renderG("vid",vidR);st.textContent="完成，耗时 "+tt+" 秒";showVidTask("success","视频已生成\n耗时："+tt+" 秒\n结果 URL："+vUrl);toast("视频已生成","success");
+  }catch(err){var msg=friendlyErr(err),old=document.getElementById("vidTaskLog")&&document.getElementById("vidTaskLog").textContent;st.textContent="失败："+msg;showVidTask("error",(old?old+"\n\n":"")+"视频生成已停止\n失败原因："+msg+"\n停止时间："+new Date().toLocaleString());toast(msg,"error");}
   finally{btn.disabled=false;setTimeout(function(){pg.style.display="none";fl.style.width="0";},800);}
 }
 function renderG(type,results){
@@ -392,9 +404,13 @@ function dlF(u,n){
 }
 function toast(m,t){var el=document.getElementById("toast");el.textContent=m;el.className="toast show "+t;setTimeout(function(){el.className="toast";},3000);}
 var _pv=1;document.addEventListener("visibilitychange",function(){_pv=document.hidden?0:1;});
-async function resumePendingVideo(){var raw=localStorage.getItem("agnes-pending-video");if(!raw)return;var task;try{task=JSON.parse(raw);}catch(e){clearPendingVideo();return;}var st=document.getElementById("vidStatus"),pg=document.getElementById("vidProgress"),fl=pg.querySelector(".progress-fill"),btn=document.getElementById("vidGenerate");btn.disabled=true;pg.style.display="block";fl.style.width="35%";toast("正在恢复未完成的视频任务","success");try{var maxW=600000,iv=2000,vUrl=null,errCount=0,t0=task.t0||Date.now();while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,_pv?iv:Math.max(iv,8000));});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>恢复处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(task.pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}},30000);if(!pr.ok){errCount++;if(errCount>=3)throw new Error("轮询连续失败 "+errCount+" 次，HTTP "+pr.status);continue;}var res=await pr.json();errCount=0;var s=String(res.status||res.state||res.task_status||"").toLowerCase();if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error)throw new Error(res.error&&res.error.message||res.error||"生成失败");}if(!vUrl)throw new Error("恢复任务超时");clearPendingVideo();vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:task.prompt||"",model:task.model||C.vidModel,duration:(task.nf/task.fr).toFixed(1)+" 秒",size:task.w+"x"+task.h,mode:task.mode||"resume",timestamp:new Date().toLocaleString()}].concat(vidR);if(vidR.length>50)vidR=vidR.slice(0,50);saveR("vid",vidR);renderG("vid",vidR);st.textContent="恢复完成";toast("视频任务已恢复完成","success");}catch(err){st.textContent="";toast(friendlyErr(err),"error");}finally{btn.disabled=false;setTimeout(function(){pg.style.display="none";fl.style.width="0";},800);}}
+async function resumePendingVideo(){
+  var raw=localStorage.getItem("agnes-pending-video");if(!raw)return;var task;try{task=JSON.parse(raw);}catch(e){clearPendingVideo();return;}
+  var st=document.getElementById("vidStatus"),pg=document.getElementById("vidProgress"),fl=pg.querySelector(".progress-fill"),btn=document.getElementById("vidGenerate");btn.disabled=true;pg.style.display="block";fl.style.width="35%";showVidTask("","检测到未完成的视频任务，正在恢复查询...\n查询地址："+task.pUrl);toast("正在恢复未完成的视频任务","success");
+  try{var maxW=600000,iv=2000,vUrl=null,errCount=0,t0=task.t0||Date.now(),lastState="恢复查询中";while(Date.now()-t0<maxW){await new Promise(function(r){setTimeout(r,_pv?iv:Math.max(iv,8000));});var el=Math.round((Date.now()-t0)/1000);st.innerHTML='<span class="spinner"></span>恢复处理中... ('+el+' 秒)';fl.style.width=(35+Math.min(55,(el/600)*55))+"%";var pr=await apiFetch(task.pUrl,{method:"GET",headers:{"Authorization":"Bearer "+C.apiKey}},30000);if(!pr.ok){errCount++;var pe=await respErr(pr);lastState="查询失败 HTTP "+pr.status;showVidTask("error","恢复任务仍在查询，但最近一次查询失败\n已用时："+el+" 秒\n连续失败："+errCount+" 次\nHTTP "+pr.status+"\n"+pe);if(errCount>=3){clearPendingVideo();throw new Error("轮询连续失败 "+errCount+" 次，HTTP "+pr.status+"："+pe);}continue;}var res=await pr.json();errCount=0;var s=String(res.status||res.state||res.task_status||"").toLowerCase();lastState=s||"未返回状态";showVidTask("","恢复任务查询中...\n已用时："+el+" 秒\n任务状态："+lastState+"\n查询地址："+task.pUrl);if(s==="completed"||s==="succeeded"||s==="success"||s==="done"){vUrl=res.video_url||res.output&&res.output.video_url||res.output&&res.output.url||res.result&&res.result.video_url||res.result&&res.result.url||res.data&&res.data.video_url||res.data&&res.data.url;break;}if(s==="failed"||s==="error"||res.error)throw new Error(dataErr(res)||"生成失败");}if(!vUrl)throw new Error("恢复任务超时，最后状态："+lastState);clearPendingVideo();vidR=[{id:Date.now(),type:"video",url:vUrl,prompt:task.prompt||"",model:task.model||C.vidModel,duration:(task.nf/task.fr).toFixed(1)+" 秒",size:task.w+"x"+task.h,mode:task.mode||"resume",timestamp:new Date().toLocaleString()}].concat(vidR);if(vidR.length>50)vidR=vidR.slice(0,50);saveR("vid",vidR);renderG("vid",vidR);st.textContent="恢复完成";showVidTask("success","视频任务已恢复完成\n结果 URL："+vUrl);toast("视频任务已恢复完成","success");}catch(err){var msg=friendlyErr(err),old=document.getElementById("vidTaskLog")&&document.getElementById("vidTaskLog").textContent;st.textContent="恢复失败："+msg;showVidTask("error",(old?old+"\n\n":"")+"视频任务恢复已停止\n失败原因："+msg+"\n停止时间："+new Date().toLocaleString());toast(msg,"error");}finally{btn.disabled=false;setTimeout(function(){pg.style.display="none";fl.style.width="0";},800);}
+}
 document.getElementById("imgFilter").onchange=function(){renderG("img",imgR);};document.getElementById("vidFilter").onchange=function(){renderG("vid",vidR);};
-renderG("img",imgR);renderG("vid",vidR);resumePendingVideo();
+renderG("img",imgR);renderG("vid",vidR);loadVidTask();resumePendingVideo();
 </script>
 </body>
 </html>
