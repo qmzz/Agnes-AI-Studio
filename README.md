@@ -9,10 +9,11 @@
 - **图片生成**：文生图、图生图。图生图使用公网可访问的参考图 URL。
 - **视频生成**：文生视频、图生视频、多图参考、关键帧。参考图均使用公网可访问的图片 URL。
 - **生成记录本地保留**：图片和视频结果保存在浏览器 localStorage，刷新页面不会丢失；需要手动点击删除才会清理。
-- **结果操作**：支持新标签打开、下载、删除；图片结果可一键设为图生图参考图。
+- **结果操作**：支持新标签打开、下载、删除、复制 URL；图片结果可一键设为图生图/图生视频参考图，历史记录可按类型筛选并手动清空。
 - **帧率/帧数联动**：视频帧数按 `帧数 = 帧率 × 时间 + 1` 自动生成，最高 441 帧。
+- **视频任务可观测**：视频生成会持久显示任务状态、任务 ID、轮询状态和失败原因，支持复制任务 ID、清除任务日志，并在长任务中自动降低轮询频率。
 - **主题切换**：支持暗色/亮色主题，本地保存偏好。
-- **高级设置**：可自定义图片 API、视频 API、视频查询 API 和模型名称。
+- **高级设置**：可自定义图片 API、视频 API、视频查询 API 和模型名称；Worker 代理带同源校验、Agnes 域名白名单和基础限流。
 
 ## 默认 API
 
@@ -51,6 +52,13 @@
 powershell -ExecutionPolicy Bypass -File scripts/check.ps1
 ```
 
+可选烟测：
+
+```powershell
+npm install
+npm run test:smoke
+```
+
 ## 项目结构
 
 ```text
@@ -59,6 +67,10 @@ powershell -ExecutionPolicy Bypass -File scripts/check.ps1
 ├── wrangler.toml   # Wrangler 配置
 ├── README.md       # 项目说明
 ├── CHANGELOG.md    # 版本变更记录
+├── package.json    # 本地测试脚本
+├── package-lock.json # 测试依赖锁定
+├── playwright.config.js # Playwright 配置
+├── tests/          # Playwright 冒烟测试
 ├── scripts/check.ps1 # 发布前检查脚本
 └── LICENSE
 ```

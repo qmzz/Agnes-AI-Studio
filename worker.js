@@ -1,6 +1,8 @@
 import HTML_CONTENT from './index.html';
 
 const ALLOWED_PROXY_HOSTS = new Set(['agnes-ai.com', 'apihub.agnes-ai.com']);
+const PROXY_LIMIT = { max: 60, windowMs: 60_000 };
+const proxyHits = new Map();
 
 export default {
   async fetch(request) {
@@ -35,9 +37,33 @@ function jsonError(message, status) {
   });
 }
 
+function allowedOrigin(request) {
+  const origin = request.headers.get('Origin');
+  if (!origin) return true;
+  return new URL(origin).hostname === new URL(request.url).hostname;
+}
+
+function rateLimit(request) {
+  const now = Date.now();
+  const ip = request.headers.get('CF-Connecting-IP') || 'local';
+  const item = proxyHits.get(ip) || { count: 0, resetAt: now + PROXY_LIMIT.windowMs };
+  if (now > item.resetAt) {
+    item.count = 0;
+    item.resetAt = now + PROXY_LIMIT.windowMs;
+  }
+  item.count += 1;
+  proxyHits.set(ip, item);
+  if (proxyHits.size > 1000) {
+    for (const [key, value] of proxyHits) if (now > value.resetAt) proxyHits.delete(key);
+  }
+  return item.count <= PROXY_LIMIT.max;
+}
+
 async function handleProxy(request) {
   try {
     if (request.method !== 'POST') return jsonError('Proxy only accepts POST requests', 405);
+    if (!allowedOrigin(request)) return jsonError('Proxy origin is not allowed', 403);
+    if (!rateLimit(request)) return jsonError('Proxy rate limit exceeded', 429);
     const { targetUrl, method = 'POST', headers = {}, body } = await request.json();
     const target = new URL(targetUrl);
     const proxyMethod = String(method).toUpperCase();

@@ -1,0 +1,13 @@
+{
+  "name": "agnes-ai-studio",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "powershell -ExecutionPolicy Bypass -File scripts/check.ps1",
+    "test:smoke": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0"
+  }
+}

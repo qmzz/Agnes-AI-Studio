@@ -6,5 +6,8 @@ $tmp = Join-Path $env:TEMP "agnes-ai-studio-check.js"
 Set-Content -Path $tmp -Value $match.Groups[1].Value -NoNewline
 node --check $tmp
 node --check worker.js
+node --check playwright.config.js
+node --check tests/smoke.spec.js
+node -e "JSON.parse(require('fs').readFileSync('package.json','utf8'))"
 git diff --check
 Write-Host "OK: syntax and whitespace checks passed"
