@@ -1,4 +1,6 @@
-﻿import HTML_CONTENT from './index.html';
+import HTML_CONTENT from './index.html';
+
+const ALLOWED_PROXY_HOSTS = new Set(['agnes-ai.com', 'apihub.agnes-ai.com']);
 
 export default {
   async fetch(request) {
@@ -8,7 +10,6 @@ export default {
       return new Response(null, { headers: corsHeaders() });
     }
 
-    // API proxy
     if (url.pathname === '/api/proxy') {
       return handleProxy(request);
     }
@@ -27,13 +28,27 @@ function corsHeaders() {
   };
 }
 
+function jsonError(message, status) {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+  });
+}
+
 async function handleProxy(request) {
   try {
-    const { targetUrl, method, headers, body } = await request.json();
-    const resp = await fetch(targetUrl, {
-      method: method || 'POST',
-      headers: headers || { 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
+    if (request.method !== 'POST') return jsonError('Proxy only accepts POST requests', 405);
+    const { targetUrl, method = 'POST', headers = {}, body } = await request.json();
+    const target = new URL(targetUrl);
+    const proxyMethod = String(method).toUpperCase();
+
+    if (!ALLOWED_PROXY_HOSTS.has(target.hostname)) return jsonError('Proxy target is not allowed', 403);
+    if (!['GET', 'POST'].includes(proxyMethod)) return jsonError('Proxy method is not allowed', 405);
+
+    const resp = await fetch(target.toString(), {
+      method: proxyMethod,
+      headers,
+      body: proxyMethod === 'GET' ? undefined : body,
     });
     const contentType = resp.headers.get('Content-Type') || 'application/json';
     return new Response(resp.body, {
@@ -41,9 +56,6 @@ async function handleProxy(request) {
       headers: { ...corsHeaders(), 'Content-Type': contentType },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
-    });
+    return jsonError(err.message || 'Proxy request failed', 500);
   }
 }

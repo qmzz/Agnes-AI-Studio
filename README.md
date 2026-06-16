@@ -2,7 +2,7 @@
 
 基于 Agnes AI API 的图片与视频生成工具，支持单文件静态页面和 Cloudflare Workers 部署。
 
-> **隐私说明**：所有配置与生成记录（API Key、端点、模型、图片/视频结果 URL 等）仅保存在你的浏览器本地 localStorage 中，不会上传到本项目服务器。生成请求会直接发送到你配置的 Agnes AI API 端点。
+> **隐私说明**：配置与生成记录（API Key、端点、模型、图片/视频结果 URL 等）仅保存在你的浏览器本地 localStorage 中。生成请求默认直连 Agnes AI API；直连失败时会通过同源 Worker 代理重试，代理仅允许 Agnes 域名。
 
 ## 功能
 
@@ -43,7 +43,7 @@
 
 1. 安装并配置 Wrangler。
 2. 使用仓库中的 `wrangler.toml` 和 `worker.js` 部署。
-3. Worker 会返回 `index.html` 页面，并保留 `/api/proxy` 代理能力供扩展使用。
+3. Worker 会返回 `index.html` 页面，并提供 `/api/proxy` 作为 Agnes API 的同源兜底代理。代理仅允许 `agnes-ai.com` 与 `apihub.agnes-ai.com`。
 
 ## 发布前检查
 
