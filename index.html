@@ -217,7 +217,7 @@ function setVidTaskId(id){var btn=document.getElementById("copyVidTaskBtn");wind
 function clearVidTask(){var el=document.getElementById("vidTaskLog");if(el){el.textContent="";el.className="task-log";}setVidTaskId("");localStorage.removeItem("agnes-video-task-log");}
 function loadVidTask(){var raw=localStorage.getItem("agnes-video-task-log");if(!raw)return;try{var x=JSON.parse(raw);if(x&&x.msg)showVidTask(x.kind||"",x.msg);if(x&&x.taskId)setVidTaskId(x.taskId);}catch(e){localStorage.removeItem("agnes-video-task-log");}}
 function clearHistory(type){if(!confirm(type==="img"?"确定清空所有图片记录？":"确定清空所有视频记录？"))return;if(type==="img"){imgR=[];saveR("img",imgR);renderG("img",imgR);toast("图片记录已清空","success");}else{vidR=[];saveR("vid",vidR);renderG("vid",vidR);toast("视频记录已清空","success");}}
-function pollDelay(base,errCount,startedAt){var elapsed=(Date.now()-startedAt)/1000,grow=elapsed>180?1.6:elapsed>60?1.3:1;return Math.min(15000,Math.round(base*Math.pow(grow,Math.max(0,errCount))));}
+function pollDelay(base,errCount,startedAt){return (Date.now()-startedAt)/1000<120?15000:10000;}
 function dataErr(d){var e=d&&(d.error||d.message||d.msg||d.detail||d.reason||d.data&&d.data.error||d.result&&d.result.error);if(!e)return "";return typeof e==="string"?e:e.message?e.message:JSON.stringify(e);}
 async function respErr(r){var t=await r.text();try{var j=JSON.parse(t);return dataErr(j)||t||("HTTP "+r.status);}catch(e){return t||("HTTP "+r.status);}}
 const root=document.documentElement,th=localStorage.getItem("agnes-th")||"dark";
