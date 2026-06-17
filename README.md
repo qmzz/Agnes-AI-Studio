@@ -44,7 +44,8 @@
 
 1. 安装并配置 Wrangler。
 2. 使用仓库中的 `wrangler.toml` 和 `worker.js` 部署。
-3. Worker 会返回 `index.html` 页面，并提供 `/api/proxy` 作为 Agnes API 的同源兜底代理。代理仅允许 `agnes-ai.com` 与 `apihub.agnes-ai.com`。
+3. `wrangler.toml` 会把 `index.html` 作为文本资源打包给 Worker，避免部署后页面空白。
+4. Worker 会返回 `index.html` 页面，并提供 `/api/proxy` 作为 Agnes API 的同源兜底代理。代理仅允许 `agnes-ai.com` 与 `apihub.agnes-ai.com`。
 
 ## 项目结构
 
