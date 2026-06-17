@@ -46,19 +46,6 @@
 2. 使用仓库中的 `wrangler.toml` 和 `worker.js` 部署。
 3. Worker 会返回 `index.html` 页面，并提供 `/api/proxy` 作为 Agnes API 的同源兜底代理。代理仅允许 `agnes-ai.com` 与 `apihub.agnes-ai.com`。
 
-## 发布前检查
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/check.ps1
-```
-
-可选烟测：
-
-```powershell
-npm install
-npm run test:smoke
-```
-
 ## 项目结构
 
 ```text
@@ -67,10 +54,5 @@ npm run test:smoke
 ├── wrangler.toml   # Wrangler 配置
 ├── README.md       # 项目说明
 ├── CHANGELOG.md    # 版本变更记录
-├── package.json    # 本地测试脚本
-├── package-lock.json # 测试依赖锁定
-├── playwright.config.js # Playwright 配置
-├── tests/          # Playwright 冒烟测试
-├── scripts/check.ps1 # 发布前检查脚本
 └── LICENSE
 ```
