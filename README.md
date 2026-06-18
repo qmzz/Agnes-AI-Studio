@@ -34,18 +34,28 @@
 
 ## 部署
 
-### Cloudflare Pages
+### 手动部署到 Cloudflare Workers
 
-1. 在 Cloudflare 控制台进入 **Workers & Pages**。
-2. 创建 Pages 项目，上传 `index.html` 即可。
-3. 部署完成后访问生成的 `*.pages.dev` 地址。
+适合想快速试用、不想连接 GitHub 的情况。
 
-### Cloudflare Workers
+1. 在 Cloudflare 控制台进入 **Workers & Pages**，创建一个 Worker。
+2. 打开在线编辑器，将 `worker.js` 的代码复制进去。
+3. 将 `index.html` 的内容按 Worker 代码中的导入方式一并加入项目资源。
+4. 保存并部署，访问 Worker 地址即可。
 
-1. 安装并配置 Wrangler。
-2. 使用仓库中的 `wrangler.toml` 和 `worker.js` 部署。
-3. `wrangler.toml` 会把 `index.html` 作为文本资源打包给 Worker，避免部署后页面空白。
-4. Worker 会返回 `index.html` 页面，并提供 `/api/proxy` 作为 Agnes API 的同源兜底代理。代理仅允许 `agnes-ai.com` 与 `apihub.agnes-ai.com`。
+### 自动部署到 Cloudflare Workers
+
+适合长期维护或希望跟随 GitHub 仓库更新的情况。
+
+1. Fork 本项目到你的 GitHub 账号。
+2. 在 Cloudflare 控制台连接 GitHub 仓库。
+3. 选择 Worker 部署方式，入口文件使用 `worker.js`。
+4. 保留仓库中的 `wrangler.toml`，它会声明 Worker 名称、入口文件、兼容日期，并把 `index.html` 作为文本资源打包给 Worker。
+5. 部署完成后，Worker 会返回 `index.html` 页面，并提供 `/api/proxy` 作为 Agnes API 的同源兜底代理。代理仅允许 `agnes-ai.com` 与 `apihub.agnes-ai.com`。
+
+### 静态页面部署
+
+如果只需要前端页面，不需要 Worker 代理能力，也可以把 `index.html` 作为静态页面部署到任意静态托管服务。也可以把 `index.html` 下载到本地，直接用浏览器打开。此模式下生成请求会直接访问 Agnes API，无法使用同源 `/api/proxy` 兜底。
 
 ## 项目结构
 
